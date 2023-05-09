@@ -24,10 +24,13 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 """
 
 
+from hashlib import md5
 from os import cpu_count
+import os
 import sys
 import threading
 from time import sleep
+import time
 import requests
 
 
@@ -59,29 +62,30 @@ if len(sys.argv) > 1:
         exit()
     else:
         DOMAIN_TO_VIOLATE = sys.argv[1]
-        print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
+        # print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
 else:
     DOMAIN_TO_VIOLATE = "https://www.speletshus.se"
-    print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
-    sleep(1)
-
-GOING_THROUGH_SUBDOMAINS = False
+    # print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
+    # sleep(1)
 
 
 # get number of threads of the system
-processor_threads = cpu_count() * 2 - 4
-MAX_THREADS = processor_threads if processor_threads > 4 else 4
+_processor_threads = cpu_count() * 2 - 4
+MAX_THREADS = _processor_threads if _processor_threads > 4 else 4
 print(f"Max threads: {MAX_THREADS}")
 
 if "http" not in DOMAIN_TO_VIOLATE:
     DOMAIN_TO_VIOLATE = "https://" + DOMAIN_TO_VIOLATE
 
-print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
+# print(f"Domain to violate: {DOMAIN_TO_VIOLATE}")
 
-BAD_PAGE_SIZES = [3943, 0, 196, 5252]
+BAD_PAGE_SIZES = []
 
-A_BAD_PAGE = "THIS_SHOULD_NOT_BE_A_VALID_PAGE"
-LIST_OF_SUB_PATHS_AND_FILES = [A_BAD_PAGE]
+A_BAD_PAGE = md5(
+    ("THIS_SHOULD_NOT_BE_A_VALID_PAGE" + str(time.localtime())).encode("utf-8")
+).hexdigest()
+
+LIST_OF_SUB_PATHS_AND_FILES = []
 NUMBER_OF_STRINGS_TESTED = 0
 
 FOUND_SUBDOMAINS = []
@@ -122,40 +126,6 @@ FILE_EXT_LONG = [
     ".gif",
     ".xml",
 ]
-
-
-def update_string_at_index(string: str, index: int, char: str):
-    """
-    Update a character of a string at a specified index.
-    """
-    new_string = ""
-    for inx, character in enumerate(string):
-        if inx == index:
-            new_string += char
-        else:
-            new_string += character
-
-    return new_string
-
-
-def get_char_for_string(string: str, index: int):
-    """
-    Return the next character for a string at a specified index.
-    """
-    return string[index]
-
-
-def get_next_char(char: str):
-    """
-    Get the next character for a character.
-    """
-    char_id = ord(char)
-    integer = char_id + 1
-    if char_id == 90:
-        return chr(integer + 6)
-    else:
-        return chr(integer)
-
 
 BRUTE_FORCING: bool = False
 
@@ -208,72 +178,6 @@ def start_thread(target, name: str, args: str):
     NUMBER_OF_STRINGS_TESTED += 1
 
 
-def increese_first_in_string(string: str):
-    """
-    Increase the first character in a string.
-
-    Parameters
-    ----------
-    string : str
-        The string to increase the first character of.
-
-    Returns
-    -------
-    str
-        The string with the first character increased.
-
-    Examples
-    --------
-    >>> increese_first_in_string("a")
-    "b"
-    >>> increese_first_in_string("aa")
-    "ab"
-    >>> increese_first_in_string("az")
-    "ba"
-    """
-    return update_string_at_index(string, 0, get_next_char(string[0]))
-
-
-def increase_string(string: str, pre_string: str = ""):
-    """
-    Increase a string.
-
-    Parameters
-    ----------
-    string : str
-        The string to increase.
-    pre_string : str, optional
-        A string to add before the string to increase. The default is "".
-
-    Examples
-    --------
-    >>> increase_string("a")
-    "b"
-    >>> increase_string("aa")
-    "ab"
-    >>> increase_string("az")
-    "ba"
-    """
-    if len(string) == 1:
-        next_string = string
-        add_to_list(pre_string + next_string)
-
-        for _ in range(1, (26 * 2)):
-            next_string = increese_first_in_string(next_string)
-            add_to_list(pre_string + next_string)
-            if next_string == "z":
-                return
-
-    else:
-        next_string = string
-        increase_string(next_string[1:], pre_string + next_string[0])
-        for _ in range(0, (26 * 2)):
-            next_string = increese_first_in_string(next_string)
-            increase_string(next_string[1:], pre_string + next_string[0])
-            if next_string[0] == "z":
-                return
-
-
 def brute_domain(string: str):
     """
     Brute force a single domain.
@@ -282,28 +186,10 @@ def brute_domain(string: str):
     ----------
     string : str
         The url to brute force.
-
-    Examples
-    --------
-    >>> brute_domain("https://www.speletshus.se")
     """
-    get_percent = round(
-        (
-            NUMBER_OF_STRINGS_TESTED
-            / (len(LIST_OF_SUB_PATHS_AND_FILES) + NUMBER_OF_STRINGS_TESTED)
-        )
-        * 100,
-        2,
-    )
-    str_tested = shorten_number(NUMBER_OF_STRINGS_TESTED)
-    str_left = shorten_number(len(LIST_OF_SUB_PATHS_AND_FILES))
 
-    print(
-        f"Testing: Tested {str_tested} with {str_left} left | {get_percent}% | Path: {string}\033[J",
-        end="\r",
-    )
+    status_code, size = ping_url(string)
 
-    status_code = ping_url(string)
     if status_code == 0:
         # print(f"Ignoring page {test_url}")
         return
@@ -320,9 +206,8 @@ def brute_domain(string: str):
 
     elif status_code == 400:
         # If the status code is 400, then add it to a list of bad requests.
-        if not GOING_THROUGH_SUBDOMAINS:
-            print(f"{TColours.FAIL}Bad request: {string}\033[J")
-            # add_to_subdomains_or_files(string)
+        print(f"{TColours.FAIL}Bad request: {string}\033[J")
+        # add_to_subdomains_or_files(string)
 
         FOUND_BAD_REQUEST_PATHS.append(string)
 
@@ -335,8 +220,7 @@ def brute_domain(string: str):
         # If the status code is 403, then add it to a list of forbidden pages.
         print(f"{TColours.FAIL}Forbidden page: {string}\033[J")
         FOUND_FORBIDDEN_PATHS.append(string)
-        if not GOING_THROUGH_SUBDOMAINS:
-            add_to_subdomains_or_files(string)
+        add_to_subdomains_or_files(string)
 
     elif status_code == 500:
         # If the status code is 500, then add it to a list of internal server error pages.
@@ -362,28 +246,43 @@ def add_to_subdomains_or_files(string: str):
         FOUND_SUBDOMAINS.append(string)
 
 
-def ping_url(url: str):
+def ping_url(url: str) -> tuple[int, int]:
     """
     Ping a url and return the status code.
+
+    Parameters
+    ----------
+    url : str
+        The url to ping.
+
+    Returns
+    -------
+    tuple[int, int]
+        The status code and the size of the page.
+
+    Examples
+    --------
+    >>> ping_url("http://www.speletshus.se")
+    200, 3943
+    >>> ping_url("http://www.speletshus.se/this_page_should_not_exist")
+    404, None
     """
 
     try:
         request = requests.get(url=url, timeout=5)
         size = len(request.content)
 
-        global BAD_PAGE_SIZES
-        if A_BAD_PAGE in url:
-            print(f"{TColours.FAIL}Bad page: {url} Size: {size} \033[J")
-            BAD_PAGE_SIZES.append(int(size))
-
         if size in BAD_PAGE_SIZES:
-            return 0
+            return 404, size
         else:
-            return request.status_code
+            return request.status_code, size
+    except requests.exceptions.SSLError:
+        pass
     except requests.ConnectionError:
         pass
     except requests.exceptions.ReadTimeout:
         pass
+    return 404, 0
 
 
 def shorten_number(number: int):
@@ -519,26 +418,172 @@ def brute():
     return
 
 
+def print_header():
+    # clear screen
+    print("\033c", end="")
+    print(f"{TColours.HEADER}#" * 50)
+    print(f"{TColours.HEADER}#" * 50)
+    print(f'{TColours.HEADER}{"#" * 2}{" " * 46}{"#" * 2}')
+    print(f"{TColours.HEADER}## Brute.py by Christoffer von Matérn - @Birdey ##")
+    print(f'{TColours.HEADER}{"#" * 2}{" " * 46}{"#" * 2}')
+    print(f"{TColours.HEADER}#" * 50)
+    print(f"{TColours.HEADER}#" * 50)
+    print(f"{TColours.OKCYAN}Domain to violate: {DOMAIN_TO_VIOLATE}")
+    print(f"{TColours.OKCYAN}Max threads: {MAX_THREADS}")
+    if len(BAD_PAGE_SIZES) > 0:
+        print(f"{TColours.OKCYAN}Bad page sizes: {BAD_PAGE_SIZES}")
+    print(f"{TColours.HEADER}#" * 50)
+    print("")
+    return
+
+
+def test_bad_url():
+    """
+    Test a bad url.
+    """
+    test_url = f"{DOMAIN_TO_VIOLATE}/{A_BAD_PAGE}"
+    status_code, size = ping_url(test_url)
+    if status_code != 404:
+        print(f"{TColours.FAIL}Bad url: {test_url} is not returning 404\033[J")
+        BAD_PAGE_SIZES.append(size)
+
+
+def brute2(all_file_extensions: bool = False):
+    """
+    Brute force attack on a website to find subdomains and files on the server.
+
+    Parameters
+    ----------
+    all_file_extensions : bool, optional
+        Should all file extensions be tested or not. The default is False.
+    """
+
+    test_bad_url()
+
+    print_header()
+    # Load lines from file into string_list
+    list_of_test_strings = open("words.txt", "r", encoding="utf-8")
+    testing_strings = list_of_test_strings.readlines()
+    list_of_test_strings.close()
+    update_screen_at = MAX_THREADS * 2
+
+    # Get correct list of file extensions.
+    if all_file_extensions:
+        list_of_file_extensions = FILE_EXT_LONG
+    else:
+        list_of_file_extensions = FILE_EXT
+
+    # Add all file extensions to the end of the testing strings.
+    _new_testing_strings = []
+
+    for index, _string in enumerate(testing_strings):
+        if _string.strip() == "":
+            print(f"Skipping '{_string}' at line {index}")
+            sleep(10)
+        _new_testing_strings.append(_string.strip())
+        for file_ext in list_of_file_extensions:
+            _new_testing_strings.append(f"{_string.strip()}{file_ext}")
+
+        percent = round((index / len(testing_strings)) * 100, 2)
+        print(
+            f"{TColours.OKCYAN}Preparing strings: {percent}% | {_string.strip()}",
+            end="\r",
+        )
+    testing_strings = _new_testing_strings
+
+    # Start the brute forcing.
+    for index, _string in enumerate(testing_strings):
+        string = _string.strip()
+        if not string:
+            continue
+
+        test_url = f"{DOMAIN_TO_VIOLATE}/{string}"
+
+        while threading.active_count() > MAX_THREADS:
+            sleep(0.01)
+
+        start_thread(brute_domain, f"Brute {test_url}", test_url)
+
+        if index % update_screen_at == 0:
+            str_tested = shorten_number(index)
+            str_left = shorten_number(len(testing_strings) - index)
+            percent = round((index / len(testing_strings)) * 100, 2)
+            print(
+                f"{TColours.OKCYAN}Testing: {str_tested} with {str_left} left | {percent}% | {string}\033[J",
+                end="\r",
+            )
+
+
+def save_data():
+    """
+    Save the data to a file.
+    """
+    folder_name = "data"
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+
+    file_name = slugify(DOMAIN_TO_VIOLATE)
+
+    with open(
+        file=f"{folder_name}/{file_name}.txt", mode="w", encoding="utf-8"
+    ) as file:
+        file.write("Valid paths:\n")
+        for path in FOUND_VALID_PATHS:
+            file.write(path + "\n")
+
+        file.write("\nSub domains:\n")
+        for sub_domain in FOUND_SUBDOMAINS:
+            file.write(sub_domain + "\n")
+
+        file.write("\nFiles:\n")
+        for file_path in FOUND_FILES:
+            file.write(file_path + "\n")
+
+        file.write("\nBad request pages:\n")
+        for bad_request in FOUND_BAD_REQUEST_PATHS:
+            file.write(bad_request + "\n")
+
+        file.write("\nForbidden pages:\n")
+        for forbidden_page in FOUND_FORBIDDEN_PATHS:
+            file.write(forbidden_page + "\n")
+
+        file.write("\nUnauthorized pages:\n")
+        for unauthorized_page in FOUND_UNAUTHORIZED_PATHS:
+            file.write(unauthorized_page + "\n")
+
+        file.close()
+
+    print(f"{TColours.OKGREEN}Saved data to {folder_name}/{file_name}.txt")
+
+
+def slugify(value: str):
+    """
+    Slugify a string.
+    """
+    return (
+        value.lower()
+        .replace(" ", "-")
+        .replace("/", "-")
+        .replace(".", "-")
+        .replace(":", "-")
+    )
+
+
 def main():
     """
     Main function for the program.
     """
-
     # Run the brute force attack.
-    brute()
+    brute2(all_file_extensions=False)
 
     # Wait for threads to finish
     while threading.active_count() > 1:
         # clear screen
-        print("\033c", end="")
         sleep(0.1)
         print(f"Active threads: {threading.active_count()}", end="\r")
-        for thread in threading.enumerate():
-            print(
-                f"Waiting for thread: {thread.name} | isAlive: {thread.is_alive()}",
-                end="\r",
-            )
     print("")
+
+    save_data()
 
     # Print the results of the brute force attack.
     print(f"{TColours.HEADER}#" * 10)
@@ -576,16 +621,6 @@ if __name__ == "__main__":
     print("-- Brute.py --")
 
     main()
-
-    GOING_THROUGH_SUBDOMAINS = True
-
-    while len(FOUND_SUBDOMAINS) > 0:
-        print_list(FOUND_SUBDOMAINS, "Sub Domains left to go thrue")
-        DOMAIN_TO_VIOLATE = FOUND_SUBDOMAINS.pop(0)
-        print(f"{TColours.OKGREEN}Time to go thru {DOMAIN_TO_VIOLATE}")
-        # print(f"{bcolors.OKBLUE}Press enter to start")
-        # input()
-        main()
 
     input(f"{TColours.OKBLUE}Press enter to see Subdomains")
     print_list(FOUND_SUBDOMAINS, "Sub Domains")
