@@ -448,7 +448,7 @@ def test_bad_url():
         BAD_PAGE_SIZES.append(size)
 
 
-def brute2(all_file_extensions: bool = False):
+def brute2(all_file_extensions: bool = False, test_run: bool = False):
     """
     Brute force attack on a website to find subdomains and files on the server.
 
@@ -459,16 +459,64 @@ def brute2(all_file_extensions: bool = False):
     """
 
     test_bad_url()
-
     print_header()
-    # Load lines from file into string_list
-    list_of_test_strings = open("words.txt", "r", encoding="utf-8")
-    testing_strings = list_of_test_strings.readlines()
-    list_of_test_strings.close()
+
+    testing_strings: list[str]
+    if test_run:
+        # load short list of strings into string_list
+        testing_strings = [
+            "res",
+            "images",
+            "img",
+            "css",
+            "js",
+            "fonts",
+            "lib",
+            "src",
+            "pages",
+            "page",
+            "home",
+            "index",
+            "login",
+            "admin",
+            "files",
+            "beta",
+            "dev",
+            "old",
+            "new",
+            "backup",
+            "backups",
+            "backup_files",
+            "test",
+            "tests",
+            "testing",
+            "staging",
+            "path",
+            "paths",
+            "public",
+            "private",
+            "user",
+            "users",
+            "account",
+            "accounts",
+            "profile",
+            "profiles",
+            "upload",
+            "uploads",
+            "download",
+            "downloads",
+            "media",
+        ]
+    else:
+        # Load lines from words.txt into string_list
+        list_of_test_strings = open("words.txt", "r", encoding="utf-8")
+        testing_strings = list_of_test_strings.readlines()
+        list_of_test_strings.close()
+
     update_screen_at = MAX_THREADS * 2
 
     # Get correct list of file extensions.
-    if all_file_extensions:
+    if all_file_extensions and not test_run:
         list_of_file_extensions = FILE_EXT_LONG
     else:
         list_of_file_extensions = FILE_EXT
@@ -518,42 +566,58 @@ def save_data():
     """
     Save the data to a file.
     """
-    folder_name = "data"
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
+    # create a path folder from the domain
+    save_path = DOMAIN_TO_VIOLATE
+    print(f"Saving data to {save_path}")
+    save_path = save_path.replace("https://", "")
+    print(f"Saving data to {save_path}")
+    save_path = save_path.replace("http://", "")
+    print(f"Saving data to {save_path}")
+    save_path = save_path.replace("www.", "")
+    print(f"Saving data to {save_path}")
+    save_path = save_path.replace(".", "_")
+    print(f"Saving data to {save_path}")
+    save_path = f"results/{save_path}"
 
-    file_name = slugify(DOMAIN_TO_VIOLATE)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
-    with open(
-        file=f"{folder_name}/{file_name}.txt", mode="w", encoding="utf-8"
-    ) as file:
-        file.write("Valid paths:\n")
-        for path in FOUND_VALID_PATHS:
-            file.write(path + "\n")
+    file_name = "bruteforce_" + time.strftime("%Y-%m-%d")
 
-        file.write("\nSub domains:\n")
-        for sub_domain in FOUND_SUBDOMAINS:
-            file.write(sub_domain + "\n")
+    with open(file=f"{save_path}/{file_name}.txt", mode="w", encoding="utf-8") as file:
+        # if len(FOUND_VALID_PATHS) != 0:
+        #     file.write("Valid paths:\n")
+        #     for path in FOUND_VALID_PATHS:
+        #         file.write(path + "\n")
 
-        file.write("\nFiles:\n")
-        for file_path in FOUND_FILES:
-            file.write(file_path + "\n")
+        if len(FOUND_SUBDOMAINS) != 0:
+            file.write("\nSub domains:\n")
+            for sub_domain in FOUND_SUBDOMAINS:
+                file.write(sub_domain + "\n")
 
-        file.write("\nBad request pages:\n")
-        for bad_request in FOUND_BAD_REQUEST_PATHS:
-            file.write(bad_request + "\n")
+        if len(FOUND_FILES) != 0:
+            file.write("\nFiles:\n")
+            for file_path in FOUND_FILES:
+                file.write(file_path + "\n")
 
-        file.write("\nForbidden pages:\n")
-        for forbidden_page in FOUND_FORBIDDEN_PATHS:
-            file.write(forbidden_page + "\n")
+        if len(FOUND_BAD_REQUEST_PATHS) != 0:
+            file.write("\nBad request pages:\n")
+            for bad_request in FOUND_BAD_REQUEST_PATHS:
+                file.write(bad_request + "\n")
 
-        file.write("\nUnauthorized pages:\n")
-        for unauthorized_page in FOUND_UNAUTHORIZED_PATHS:
-            file.write(unauthorized_page + "\n")
+        if len(FOUND_FORBIDDEN_PATHS) != 0:
+            file.write("\nForbidden pages:\n")
+            for forbidden_page in FOUND_FORBIDDEN_PATHS:
+                file.write(forbidden_page + "\n")
+
+        if len(FOUND_UNAUTHORIZED_PATHS) != 0:
+            file.write("\nUnauthorized pages:\n")
+            for unauthorized_page in FOUND_UNAUTHORIZED_PATHS:
+                file.write(unauthorized_page + "\n")
 
         file.close()
 
-    print(f"{TColours.OKGREEN}Saved data to {folder_name}/{file_name}.txt")
+    print(f"{TColours.OKGREEN}Saved data to {save_path}/{file_name}.txt")
 
 
 def slugify(value: str):
@@ -574,7 +638,7 @@ def main():
     Main function for the program.
     """
     # Run the brute force attack.
-    brute2(all_file_extensions=False)
+    brute2(all_file_extensions=False, test_run=False)
 
     # Wait for threads to finish
     while threading.active_count() > 1:
@@ -603,9 +667,14 @@ def print_list(
     """
     Print a list of strings.
     """
+    if len(list_to_print) == 0:
+        return
+
+    # Print a header
     print(f"{TColours.HEADER}=" * len(title) * 2)
     print(f"{TColours.HEADER}{title}:")
     print(f"{TColours.HEADER}-" * len(title) * 2)
+    # Print the paths
     current_printed = 0
     for path in list_to_print:
         print(f"{TColours.OKGREEN}{path}")
@@ -613,6 +682,8 @@ def print_list(
         if current_printed >= max_to_print:
             print(f"{TColours.OKCYAN}+{len(list_to_print)-current_printed} more...")
             break
+
+    # Print a footer
     print(f"{TColours.HEADER}=" * len(title) * 2)
     print("")
 
@@ -622,17 +693,17 @@ if __name__ == "__main__":
 
     main()
 
-    input(f"{TColours.OKBLUE}Press enter to see Subdomains")
-    print_list(FOUND_SUBDOMAINS, "Sub Domains")
-    input(f"{TColours.OKBLUE}Press enter to see files")
-    print_list(FOUND_FILES, "List of files")
-    input(f"{TColours.OKBLUE}Press enter to see forbidden pages")
-    print_list(FOUND_FORBIDDEN_PATHS, "Forbidden pages")
-    input(f"{TColours.OKBLUE}Press enter to see bad request pages")
-    print_list(FOUND_BAD_REQUEST_PATHS, "Bad request pages")
-    input(f"{TColours.OKBLUE}Press enter to see unauthorized pages")
-    print_list(FOUND_UNAUTHORIZED_PATHS, "Unauthorized pages")
-    input(f"{TColours.OKBLUE}Press enter to Exit the program")
+    # input(f"{TColours.OKBLUE}Press enter to see Subdomains")
+    # print_list(FOUND_SUBDOMAINS, "Sub Domains")
+    # input(f"{TColours.OKBLUE}Press enter to see files")
+    # print_list(FOUND_FILES, "List of files")
+    # input(f"{TColours.OKBLUE}Press enter to see forbidden pages")
+    # print_list(FOUND_FORBIDDEN_PATHS, "Forbidden pages")
+    # input(f"{TColours.OKBLUE}Press enter to see bad request pages")
+    # print_list(FOUND_BAD_REQUEST_PATHS, "Bad request pages")
+    # input(f"{TColours.OKBLUE}Press enter to see unauthorized pages")
+    # print_list(FOUND_UNAUTHORIZED_PATHS, "Unauthorized pages")
+    # input(f"{TColours.OKBLUE}Press enter to Exit the program")
 
     print("-- end --")
     print("--------------")
